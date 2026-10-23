@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "status": "draft",
+  "game_id": "jerrys-challenge",
+  "job_id": "fox-v001",
+  "asset_kind": "character",
+  "character_id": "friendly-fox",
+  "brief": "可爱小狐狸，先出四个母版候选，认可后制作动画",
+  "identity": {
+    "species": "small friendly fox",
+    "proportions": "oversized rounded head, short compact body",
+    "features": ["two pointed ears", "one bushy tail with a cream tip"],
+    "colors": ["orange fur", "cream muzzle and belly", "dark brown feet", "green scarf"],
+    "facing": "right",
+    "camera": "side view"
+  },
+  "generation": {
+    "backend": "comfyui",
+    "model_family": "FLUX.2-klein-4B",
+    "model_variant": "distilled",
+    "workflow_api_path": null,
+    "workflow_bindings_path": null,
+    "approved_master_path": null,
+    "reference_paths": [],
+    "reference_permissions": [],
+    "candidate_seeds": [24101, 24102, 24103, 24104],
+    "parameters_source": "validated_workflow",
+    "background": "solid magenta, absent from character palette",
+    "cloud_fallback_allowed": false
+  },
+  "delivery": {
+    "format": "PNG",
+    "color_mode": "RGBA8",
+    "frame_size": [32, 32],
+    "alpha_values": [0, 255],
+    "default_standing_anchor": [16, 29],
+    "common_character_scale": true,
+    "animations": [
+      {"name": "Idle", "frames": 4, "fps": 8, "sheet_size": [128, 32], "file": "Idle (32x32).png"},
+      {"name": "Run", "frames": 8, "fps": 14, "sheet_size": [256, 32], "file": "Run (32x32).png"},
+      {"name": "Jump", "frames": 2, "fps": 8, "sheet_size": [64, 32], "file": "Jump (32x32).png"},
+      {"name": "Fall", "frames": 2, "fps": 8, "sheet_size": [64, 32], "file": "Fall (32x32).png"}
+    ],
+    "staging_directory": ".asset-review/local-generation/jerrys-challenge/fox-v001",
+    "overwrite_existing_assets": false
+  },
+  "approval": {
+    "art_approved_by": null,
+    "approved_master": null,
+    "approved_frames": [],
+    "technical_checks_passed": false,
+    "godot_preview_passed": false
+  }
+}

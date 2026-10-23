@@ -7,13 +7,22 @@
 - [游戏设计文档](../../docs/games/jerrys-challenge/游戏概述.md)
 - [第一关设计](../../docs/games/jerrys-challenge/第一关设计-一起去野餐.md)
 
-当前版本：**0.3.0 可玩 demo**，Godot **4.7.2 stable**。
+当前版本：**0.4.3 可玩 demo**，Godot **4.7.2 stable**。
+
+新增两个独立冒险，标题页选择后仍可选六种角色：
+
+- **数字天平桥**：5、10、20 以内三档。天平一端放目标数，两侧共六张随机数字牌和加减号，保证有解。像拿苹果一样拿牌，放入三个凹槽拼成等于目标的算式，自动平衡开桥；两人一起走到最右侧刷新下一题。空手互动可拿回槽中的牌，持牌离开凹槽再互动可放回地面。不用点确认或拉杆。
+- **数字天平桥**：5、10、20 以内三档。天平一端放目标数，两侧共六张随机数字牌和加减号，保证有解。像拿苹果一样拿牌，放入三个凹槽拼成等于目标的算式，自动平衡开桥；两人一起走到最右侧刷新下一题。空手互动可拿回槽中的牌，持牌离开凹槽再互动可放回地面。不用点确认或拉杆。
+
+全程无订单倒计时、效率评分或顾客离场。小店当前只有固定配方，随机的是后续顾客外观；付款找零使用 1 元金币。钱包累计可能超过 10 元，单笔购买、支付和找零练习都在十以内。材料商要求付正好，材料商找零、多配方和限时挑战尚未实现。
+
+新冒险在互动后保存准确状态，包括零钱盘、手持物与库存；暂停可保存回标题继续。小店重试会明确重置整次经营；天平桥重试保留本题，将所有牌放回原位。野餐仍使用独立的原有检查点存档。
 
 已实现标题页、双人六角色选人、脚印教学、收集三个苹果、桥梁接力、各自点灯和野餐结尾。新增供家庭试玩的 Tom 小猫和 Jerry 小老鼠，默认分别预选这两个外观。支持暂停、提示、静音、当前小关重试、伙伴集合及按小关存档继续。主线无死亡与倒计时。
 
 ## 运行
 
-优先双击仓库根目录 `builds/jerrys-challenge/0.3.0/JerrysChallenge.exe`。发布包与引擎工具保留本地，不提交 Git。
+优先双击仓库根目录 `builds/jerrys-challenge/0.4.3/JerrysChallenge.exe`，或运行根目录 `启动游戏.ps1`。发布包与引擎工具保留本地，不提交 Git。
 
 开发时，用 Godot 4.7.2 导入本目录 `project.godot` 后按 F6/F5 运行，或使用根目录 `启动游戏.ps1`。无需安装 .NET。
 
@@ -31,6 +40,9 @@ Esc 暂停，F1 显示/隐藏提示。水果门和野餐灯的双拉杆需要两
 ```powershell
 # 在仓库根目录执行
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/smoke.gd
+& .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/learning_smoke.gd
+& .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/shop_journey.gd
+& .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/balance_smoke.gd
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --export-release 'Windows Desktop'
 ```
 

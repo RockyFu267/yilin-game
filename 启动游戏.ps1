@@ -1,6 +1,6 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
-$gameExecutable = Join-Path $projectRoot 'builds\jerrys-challenge\0.3.0\JerrysChallenge.exe'
+$gameExecutable = Join-Path $projectRoot 'builds\jerrys-challenge\0.4.3\JerrysChallenge.exe'
 if (Test-Path -LiteralPath $gameExecutable) {
     Start-Process -FilePath $gameExecutable -WorkingDirectory (Split-Path -Parent $gameExecutable) -WindowStyle Normal
     exit
