@@ -1,0 +1,14 @@
+# Local asset inspection files
+.asset-review/
+.tools/
+builds/
+**/.godot/
+*.log
+
+# Downloaded third-party asset library (licenses may restrict redistribution)
+/素材/*.zip
+/素材/*.rar
+/素材/*.7z
+/素材/*.pdf
+/素材/已解压/
+/素材/预览/
