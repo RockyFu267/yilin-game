@@ -20,10 +20,18 @@ func _init(host) -> void:
 
 func start(kind: String) -> void:
 	activity = kind
+	if kind == "shop" and not h.home.state.shop.is_empty():
+		s = h.home.state.shop.duplicate(true)
+		s.wallet = int(h.home.state.wallet)
+		_enter()
+		message = "小店的水果、订单和钱都还在。左边的小门通往我们的新家。"
+		return
 	s = {"limit": 5,
 		"hands": ["", ""], "done": false, "room": "shop", "wallet": 6,
 		"stock": [0, 0], "order": 0, "phase": "ingredients", "tray": 0,
-		"purchase": -1, "delivered": [0, 0], "customer": 0, "served": 0}
+		"purchase": -1, "purchase_funded": 0, "delivered": [0, 0], "customer": 0, "served": 0}
+	if kind == "shop":
+		s.wallet = int(h.home.state.wallet)
 	if kind == "ducks10":
 		s.limit = 10
 	elif kind == "ducks20":
@@ -72,13 +80,14 @@ func pause() -> void:
 	persist()
 	h._clear_menu()
 	h._button("继续玩", Rect2(460, 270, 360, 50), pause)
-	h._button("重新开店（重置钱和订单）" if activity == "shop" else "重玩这一小段", Rect2(460, 335, 360, 48), retry, false)
+	h._button("重新集合（钱和原料保留）" if activity == "shop" else "重玩这一小段", Rect2(460, 335, 360, 48), retry, false)
 	h._button("保存并回到标题", Rect2(460, 400, 360, 48), leave, false)
 
 func retry() -> void:
 	if activity == "shop":
-		# Restarting the whole shop is explicit: no refund/duplication exploit.
-		start("shop")
+		# Reposition the team without minting a new opening float or losing goods.
+		_enter()
+		message = "伙伴回到门口了，钱、原料和订单都保留。"
 	else:
 		h._unfreeze()
 		balance.reset_board()
@@ -93,6 +102,8 @@ func persist() -> void:
 	var file := FileAccess.open(SAVE, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify({"version": 1, "activity": activity, "state": s, "skins": h.selected}))
+	if activity == "shop":
+		h.home.capture_shop(s)
 
 func resume_saved() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
@@ -103,6 +114,9 @@ func resume_saved() -> void:
 		return
 	activity = data.activity
 	s = data.state
+	if activity == "shop":
+		if not h.home.state.shop.is_empty(): s = h.home.state.shop.duplicate(true)
+		s.wallet = int(h.home.state.wallet)
 	if activity != "shop" and (not s.get("balance") is Dictionary or s.balance.get("revision") != 2):
 		start(activity)
 		return
@@ -162,6 +176,13 @@ func tender() -> int:
 	return [5, 8, 10][mini(s.order, 2)]
 
 func shop_use(i: int) -> void:
+	if s.room == "shop" and near(i, 210, 35):
+		if near(1 - i, 210, 65):
+			persist()
+			h.home.enter()
+		else:
+			say("两人一起到新家小门旁，再按互动回家。")
+		return
 	if near(i, 100):
 		if near(1 - i, 100, 110):
 			if s.purchase >= 0:
@@ -192,7 +213,7 @@ func shop_use(i: int) -> void:
 				s.hands[i] = ""
 				if s.delivered == [1, 1]:
 					s.phase = "mix"
-					say("水果放齐啦！每人站一个金色脚印，同时按住自己的 E / ↓，让冰激凌机转起来。")
+					say("水果放齐啦！每人站一个金色脚印，同时按住自己的 E / O，让冰激凌机转起来。")
 				persist()
 	elif s.phase == "ready" and near(i, 650) and s.hands[i] == "":
 		s.hands[i] = "ice"
@@ -237,17 +258,26 @@ func supply_use(i: int) -> void:
 				return
 			s.purchase = item
 			s.tray = 0
+			s.purchase_funded = 0
 			say("选好了！%s要 %d 元，去右边付款盘一枚枚放钱。" % ["苹果" if item == 0 else "莓果", item + 1])
 			return
 	if s.purchase < 0:
 		return
-	if near(i, 790) and s.wallet > 0 and s.tray < 10:
-		s.wallet -= 1
+	if near(i, 790) and (s.wallet > 0 or h.home.unlimited()) and s.tray < 10:
+		var funded: int = s.get("purchase_funded", s.tray)
+		if not h.home.unlimited():
+			s.wallet -= 1
+			funded += 1
+		s.purchase_funded = funded
 		s.tray += 1
 	elif near(i, 910):
 		if s.tray > 0:
+			var funded: int = s.get("purchase_funded", s.tray)
 			s.tray -= 1
-			s.wallet += 1
+			if funded > 0:
+				s.wallet += 1
+				funded -= 1
+			s.purchase_funded = funded
 		else:
 			s.purchase = -1
 			say("取消购买，可以重新选水果。")
@@ -257,6 +287,7 @@ func supply_use(i: int) -> void:
 			s.stock[s.purchase] += 1
 			s.purchase = -1
 			s.tray = 0
+			s.purchase_funded = 0
 			say("钱正好，水果放进小店的储物架了。另一个水果也买好就能回楼上。")
 		else:
 			say("这份水果要 %d 元，再数数盘里的钱；多了可以拿回。" % cost)
@@ -295,7 +326,7 @@ func paint() -> void:
 		balance.paint()
 	h._panel(Rect2(25, 18, 570, 75), Color("49382d"))
 	label("冰激凌小铺 · 十以内算账" if activity == "shop" else "数字天平桥 · %d 以内" % s.limit, 310, 52, 24)
-	label("没有计时，慢慢想 · E / ↓ 互动", 310, 78, 17)
+	label("没有计时，慢慢想 · E / O 互动", 310, 78, 17)
 	h._panel(Rect2(30, 111, 1220, 66), Color("49382d"))
 	var lines: Array[String] = [""]
 	for letter in message:
@@ -311,7 +342,7 @@ func paint() -> void:
 			"berry": fruit(pos, true)
 			"ice": ice(pos)
 	h._panel(Rect2(30, 641, 1220, 56), Color("49382d"))
-	label("Tom   A / D 移动  W 跳跃  E 互动          Jerry   ← / → 移动  ↑ 跳跃  ↓ 互动", 640, 675, 19)
+	label("Tom   A / D 移动  W 跳跃  E 互动          Jerry   ← / → 移动  ↑ 跳跃  O 互动", 640, 675, 19)
 	if h.paused:
 		h.draw_rect(Rect2(0, 0, 1280, 720), Color(0.07, 0.14, 0.13, 0.8))
 		h._panel(Rect2(420, 185, 440, 300))
@@ -347,6 +378,11 @@ func paint_shop() -> void:
 		label("请选择水果" if s.purchase < 0 else "这笔要付 %d 元" % (s.purchase + 1), 900, 290, 23)
 	else:
 		label("森林冰激凌小铺", 570, 240, 28)
+		h.draw_rect(Rect2(180, 471, 60, 116), Color("42352d"))
+		h.draw_rect(Rect2(187, 478, 46, 107), Color("b68e60"))
+		h.draw_rect(Rect2(218, 531, 7, 7), Color("f4d486"))
+		label("新家", 210, 441, 20)
+		label("一起到门口", 210, 464, 15)
 		if s.phase == "ingredients":
 			station(320, "苹果储物架", "库存 %d" % s.stock[0])
 			station(480, "莓果储物架", "库存 %d" % s.stock[1])
@@ -366,7 +402,7 @@ func paint_shop() -> void:
 		elif s.phase == "ready":
 			ice(Vector2(650, 375))
 		if s.phase == "mix":
-			label("每人一个脚印 · 同时按住 E / ↓", 650, 290, 20)
+			label("每人一个脚印 · 同时按住 E / O", 650, 290, 20)
 			var held := mix_holds()
 			for side in range(2):
 				var stand_x: float = MIX_LEFT if side == 0 else MIX_RIGHT
@@ -386,7 +422,7 @@ func paint_shop() -> void:
 				coin(Vector2(755 + n * 24, 343))
 		if s.phase == "celebrate":
 			label("谢谢！准备好了再接下一单", 900, 333, 19)
-	label("钱袋 %d 元 · 已卖 %d 杯" % [s.wallet, s.served], 310, 273, 19)
+	label("钱袋：无限 · 已卖 %d 杯" % s.served if h.home.unlimited() else "钱袋 %d 元 · 已卖 %d 杯" % [s.wallet, s.served], 310, 273, 19)
 	for n in range(s.tray):
 		coin(Vector2(755 + n % 5 * 25, (371 if s.room == "shop" else 352) + int(n / 5) * 26))
 	if s.purchase >= 0 or s.phase == "change":

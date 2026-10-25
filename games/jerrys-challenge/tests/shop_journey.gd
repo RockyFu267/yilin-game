@@ -59,23 +59,23 @@ func run() -> void:
 			key(KEY_E, true)
 			await create_timer(0.2).timeout
 			check(shop.mix_holds() == [true, false] and shop.charge == 0, "Single held crank lights independently without progress")
-			key(KEY_DOWN, true)
+			key(KEY_O, true)
 			await create_timer(0.25).timeout
-			check(shop.charge > 0 and shop.s.phase == "mix", "Physical E and Down build progress at separate cranks")
+			check(shop.charge > 0 and shop.s.phase == "mix", "Physical E and O build progress at separate cranks")
 			key(KEY_D, true)
 			await create_timer(0.45).timeout
 			key(KEY_D, false)
 			key(KEY_E, false)
-			key(KEY_DOWN, false)
+			key(KEY_O, false)
 			await physics_frame
 			check(shop.charge == 0 and shop.s.phase == "mix" and shop.s.delivered == [1, 1], "Walking away resets processing but preserves ingredients")
 			game.players[0].position = Vector2(shop.MIX_LEFT, 600)
 			game.players[0].velocity = Vector2.ZERO
 		key(KEY_E, true)
-		key(KEY_DOWN, true)
+		key(KEY_O, true)
 		await create_timer(2.05).timeout
 		key(KEY_E, false)
-		key(KEY_DOWN, false)
+		key(KEY_O, false)
 		await physics_frame
 		check(shop.s.phase == "ready", "Order %d completes processing under normal physics, swapped roles supported" % order)
 		use_at(left, 650)

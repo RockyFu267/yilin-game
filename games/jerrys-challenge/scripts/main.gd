@@ -2,6 +2,7 @@ extends Node2D
 
 const PlayerScript = preload("res://scripts/player.gd")
 const LearningScript = preload("res://scripts/learning.gd")
+const HomeScript = preload("res://scripts/home.gd")
 const SKINS = PlayerScript.SKINS
 const SKIN_NAMES = ["青蛙伙伴", "面具伙伴", "粉粉伙伴", "蓝蓝伙伴", "Jerry 小老鼠", "Tom 小猫"]
 const CHAPTERS = ["家门口", "三个苹果", "花朵小桥", "我们的野餐"]
@@ -43,6 +44,7 @@ var note_player: AudioStreamPlayer
 var saved: Dictionary = {}
 var texture_cache: Dictionary = {}
 var learning
+var home
 var requested_activity: String = "picnic"
 
 func _ready() -> void:
@@ -56,6 +58,7 @@ func _ready() -> void:
 	pixel_font = load("res://assets/fonts/Silkscreen-Regular.ttf")
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_setup_input()
+	home = HomeScript.new(self)
 	learning = LearningScript.new(self)
 	for i in range(2):
 		var actor = PlayerScript.new()
@@ -87,10 +90,13 @@ func _ready() -> void:
 		_verify_release.call_deferred()
 
 func _setup_input() -> void:
-	var keys := {"p1_left": KEY_A, "p1_right": KEY_D, "p1_jump": KEY_W, "p1_use": KEY_E, "p2_left": KEY_LEFT, "p2_right": KEY_RIGHT, "p2_jump": KEY_UP, "p2_use": KEY_DOWN}
+	var keys := {"p1_left": KEY_A, "p1_right": KEY_D, "p1_jump": KEY_W, "p1_use": KEY_E, "p2_left": KEY_LEFT, "p2_right": KEY_RIGHT, "p2_jump": KEY_UP, "p2_use": KEY_O}
+	keys.merge({"home_p1_up": KEY_W, "home_p1_down": KEY_S, "home_p2_up": KEY_UP, "home_p2_down": KEY_DOWN})
 	for action in keys:
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)
+		if action == "p2_use":
+			InputMap.action_erase_events(action)
 		var event := InputEventKey.new()
 		event.physical_keycode = keys[action]
 		InputMap.action_add_event(action, event)
@@ -113,6 +119,8 @@ func _process(delta: float) -> void:
 		_tick_game(delta)
 	if mode == "learning" and not paused:
 		learning.tick(delta)
+	if mode == "home" and not paused:
+		home.tick(delta)
 	toast_time = maxf(0, toast_time - delta)
 	for p in particles:
 		p.position += p.velocity * delta
@@ -127,11 +135,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
 		return
 	if event is InputEventKey and event.physical_keycode == KEY_ESCAPE:
-		if mode == "learning":
+		if mode == "home":
+			home.escape()
+		elif mode == "learning":
 			learning.pause()
 		elif mode == "game":
 			_toggle_pause()
 		elif mode == "select":
+			show_title()
+		elif mode == "settings":
 			show_title()
 		return
 	if mode == "title" and event is InputEventKey and event.physical_keycode == KEY_ENTER:
@@ -145,6 +157,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_cycle(i, 1)
 			elif event.is_action_pressed(prefix + "use"):
 				_confirm(i)
+	elif mode == "home":
+		home.input(event)
 	elif mode == "learning" and not paused:
 		for i in range(2):
 			if event.is_action_pressed("p%d_use" % (i + 1)):
@@ -215,6 +229,8 @@ func show_title() -> void:
 		_button("继续野餐", Rect2(290, 520, 157, 44), resume_game, false)
 	if FileAccess.file_exists(learning.SAVE):
 		_button("继续小店 / 天平桥", Rect2(290, 574, 330, 44), learning.resume_saved, false)
+	_button("我们的小家 · 装修", Rect2(660, 574, 330, 44), func(): requested_activity = "home"; show_select())
+	_button("设置", Rect2(910, 27, 140, 40), show_settings, false)
 	_button("声音：开" if not muted else "声音：关", Rect2(1070, 27, 155, 40), _toggle_sound, false)
 
 func _toggle_sound() -> void:
@@ -225,6 +241,19 @@ func _toggle_sound() -> void:
 		show_title()
 	elif paused:
 		_pause_menu()
+	elif mode == "settings":
+		show_settings()
+
+func show_settings() -> void:
+	mode = "settings"
+	paused = false
+	for actor in players: actor.active = false
+	_clear_menu()
+	_button("无限金钱：开 ✓" if home.unlimited() else "无限金钱：关", Rect2(425, 260, 430, 51), func(): home.toggle_unlimited(); show_settings())
+	_button("钱袋增加 10 元", Rect2(425, 328, 430, 48), func(): home.set_money(int(home.state.wallet) + 10); show_settings(), false)
+	_button("重置钱袋为 6 元", Rect2(425, 393, 430, 48), func(): home.set_money(6, true); show_settings(), false)
+	_button("重置小家装饰（含库存全清空）", Rect2(425, 458, 430, 48), func(): home.reset_decorations(); show_settings(), false)
+	_button("返回标题", Rect2(425, 560, 430, 48), show_title, false)
 
 func show_select() -> void:
 	mode = "select"
@@ -237,7 +266,7 @@ func _select_menu() -> void:
 		var x := 180 + i * 510
 		_button("‹", Rect2(x + 20, 340, 48, 48), func(): _cycle(i, -1), false)
 		_button("›", Rect2(x + 322, 340, 48, 48), func(): _cycle(i, 1), false)
-		_button("出发！" if confirmed[0] and confirmed[1] else ("已准备好 ✓" if confirmed[i] else "选好了   " + ("E" if i == 0 else "↓")), Rect2(x + 50, 485, 290, 49), func(): _confirm(i))
+		_button("出发！" if confirmed[0] and confirmed[1] else ("已准备好 ✓" if confirmed[i] else "选好了   " + ("E" if i == 0 else "O")), Rect2(x + 50, 485, 290, 49), func(): _confirm(i))
 	if confirmed[0] and confirmed[1]:
 		_button("小队集合，出发！", Rect2(460, 587, 360, 55), func(): start_game(0))
 	_button("返回", Rect2(45, 35, 100, 40), show_title, false)
@@ -260,7 +289,10 @@ func start_game(chapter: int = 0) -> void:
 	if requested_activity != "picnic":
 		var activity := requested_activity
 		requested_activity = "picnic"
-		learning.start(activity)
+		if activity == "home":
+			home.enter()
+		else:
+			learning.start(activity)
 		return
 	mode = "game"
 	paused = false
@@ -534,6 +566,10 @@ func _draw() -> void:
 		_draw_select()
 	elif mode == "learning":
 		learning.paint()
+	elif mode == "home":
+		home.paint()
+	elif mode == "settings":
+		_draw_settings()
 	else:
 		_draw_level()
 		_hud()
@@ -662,8 +698,16 @@ func _draw_title() -> void:
 	_panel(Rect2(42, 641, 484, 55), Color("423e35"))
 	_text("TOM  A / D 移动  W 跳跃  E 互动", Vector2(62, 677), 18, Color("f8dda0"), true)
 	_panel(Rect2(754, 641, 484, 55), Color("423e35"))
-	_text("JERRY  ← / → 移动  ↑ 跳跃  ↓ 互动", Vector2(771, 677), 18, Color("c8ebbc"), true)
+	_text("JERRY  ← / → 移动  ↑ 跳跃  O 互动", Vector2(771, 677), 18, Color("c8ebbc"), true)
 	_center("慢慢想，一起玩 · 没有计时", 630, 19, CREAM, true)
+
+func _draw_settings() -> void:
+	_panel(Rect2(340, 130, 600, 510), Color("49382d"))
+	_center("游戏设置", 182, 32, CREAM, true)
+	_center("普通钱袋余额：%d 元" % home.state.wallet, 224, 22, Color("f4d79e"))
+	_center("重置钱袋保留家具；重置装饰不改钱和订单。", 527, 17, CREAM)
+	_center("房间、库存和手持家具全部清空，不退购买费用。", 549, 17, CREAM)
+	_center("无限金钱不扣购买费用，关闭后继续使用普通余额。", 629, 17, Color("f4d79e"))
 
 func _title_word(content: String, y: float, size: int) -> void:
 	var width := pixel_font.get_string_size(content, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
@@ -683,8 +727,8 @@ func _draw_select() -> void:
 		draw_rect(Rect2(x + 105, 410, 180, 12), Color("b38b50"))
 		_sprite(selected[i], Vector2(x + 195, 410), 4)
 		_center(SKIN_NAMES[selected[i]] + "  %d / %d" % [selected[i] + 1, SKINS.size()], 449, 20, CREAM, true, x + 195)
-		_center("A / D 选择 · E 准备" if i == 0 else "← / → 选择 · ↓ 准备", 476, 16, Color("d4be8e"), false, x + 195)
-	_center("双方准备完成！再按 E 或 ↓ 出发。" if confirmed[0] and confirmed[1] else "也可以用鼠标选择。双方准备好后出发。", 680, 18, CREAM)
+		_center("A / D 选择 · E 准备" if i == 0 else "← / → 选择 · O 准备", 476, 16, Color("d4be8e"), false, x + 195)
+	_center("双方准备完成！再按 E 或 O 出发。" if confirmed[0] and confirmed[1] else "也可以用鼠标选择。双方准备好后出发。", 680, 18, CREAM)
 
 func _draw_level() -> void:
 	match stage:
@@ -706,7 +750,7 @@ func _draw_level() -> void:
 			for i in range(2):
 				_lever(Vector2(1010 + i * 130, 585), handles[i], Color("dba765"))
 				if deposited == 3:
-					_prompt(1010 + i * 130, 477, "按住 E" if i == 0 else "按住 ↓", solved)
+					_prompt(1010 + i * 130, 477, "按住 E" if i == 0 else "按住 O", solved)
 			_gate(solved)
 		2:
 			draw_rect(Rect2(490, 585, 480, 40), Color("7bc4cd"))
@@ -731,7 +775,7 @@ func _draw_level() -> void:
 			for i in range(2):
 				var x := 460 + i * 360
 				_lever(Vector2(x, 585), lights[i], Color("ffc878") if i == 0 else Color("8edcb7"))
-				var label := "Tom · 按住 E" if i == 0 else "Jerry · 按住 ↓"
+				var label := "Tom · 按住 E" if i == 0 else "Jerry · 按住 O"
 				if lights[i] and not solved:
 					label = "保持住，等伙伴！" if not lights[1 - i] else "保持住！"
 				_prompt(x, 470, label, solved)
@@ -764,12 +808,12 @@ func _hud() -> void:
 	_panel(Rect2(28, 650, 464, 46), Color("393b31"))
 	_text("Tom   A / D 移动   W 跳跃   E 互动", Vector2(46, 680), 17, Color("ffe0a2"))
 	_panel(Rect2(776, 650, 476, 46), Color("393b31"))
-	_text("Jerry   ← / → 移动   ↑ 跳跃   ↓ 互动", Vector2(792, 680), 17, Color("c4eab7"))
+	_text("Jerry   ← / → 移动   ↑ 跳跃   O 互动", Vector2(792, 680), 17, Color("c4eab7"))
 	var message := ""
 	if toast_time > 0:
 		message = toast
 	elif hint_mode or stage_time > 50:
-		message = ["每人一个脚印，再一起进门。", "三个苹果装好后，两人同时按住拉杆。", "转木柄的人等一等，让伙伴去花岛。", "站在自己的拉杆旁，同时按住 E 和 ↓；松手会回弹。"] [stage]
+		message = ["每人一个脚印，再一起进门。", "三个苹果装好后，两人同时按住拉杆。", "转木柄的人等一等，让伙伴去花岛。", "站在自己的拉杆旁，同时按住 E 和 O；松手会回弹。"] [stage]
 	if not message.is_empty():
 		var width := minf(1050, font.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 44)
 		_panel(Rect2(640 - width / 2, 129, width, 43), Color("4a4031"))
@@ -782,7 +826,7 @@ func _prompt(x: float, y: float, caption: String, done: bool) -> void:
 	var near: Array[String] = []
 	for actor in players:
 		if absf(actor.position.x - x) < 85:
-			near.append("E" if actor.player_id == 0 else "↓")
+			near.append("E" if actor.player_id == 0 else "O")
 	if near.is_empty() and not hint_mode:
 		var by := y + sin(ticks * 3) * 3
 		draw_colored_polygon(PackedVector2Array([Vector2(x, by - 12), Vector2(x + 5, by - 7), Vector2(x, by - 2), Vector2(x - 5, by - 7)]), Color("f6d589"))
@@ -923,6 +967,28 @@ func _capture_demo(path: String) -> void:
 		if arg.begins_with("--view="):
 			view = arg.trim_prefix("--view=")
 	match view:
+		"settings":
+			show_settings()
+		"home-demo", "home-preview", "home-bag", "home-store":
+			home.state.items = [
+				{"uid": 1, "kind": "sofa", "room": "home", "cell": [3, 1], "dir": 0},
+				{"uid": 2, "kind": "rug", "room": "home", "cell": [6, 2], "dir": 0},
+				{"uid": 3, "kind": "table", "room": "home", "cell": [6, 2], "dir": 0},
+				{"uid": 4, "kind": "plant", "room": "home", "cell": [13, 0], "dir": 0},
+				{"uid": 5, "kind": "chair", "room": "inventory", "cell": [0, 0], "dir": 0},
+				{"uid": 6, "kind": "bed", "room": "home", "cell": [14, 2], "dir": 0},
+				{"uid": 7, "kind": "shelf", "room": "home", "cell": [10, 1], "dir": 0}]
+			home.state.next_uid = 8
+			home.enter()
+			if view == "home-preview":
+				home.take_kind(0, "chair")
+				home.positions[0] = home.cell_center(Vector2i(4, 6))
+			if view == "home-bag":
+				home.bag_menu(0)
+			if view == "home-store":
+				home.positions[0] = home.cell_center(Vector2i(4, 2))
+		"home", "furniture", "home-atlas":
+			home.enter("furniture" if view == "furniture" else "home")
 		"shop-mix", "shop-mix-one", "shop-change":
 			learning.start("shop")
 			learning.s.delivered = [1, 1]
@@ -932,7 +998,7 @@ func _capture_demo(path: String) -> void:
 				learning.s.tray = 2
 				learning.message = "客人付了 8 元，冰激凌 5 元，分出要还给客人的零钱。"
 			else:
-				learning.message = "水果放齐啦！每人站一个金色脚印，同时按住自己的 E / ↓。"
+				learning.message = "水果放齐啦！每人站一个金色脚印，同时按住自己的 E / O。"
 			players[0].position = Vector2(learning.MIX_LEFT, 600)
 			players[1].position = Vector2(learning.MIX_RIGHT, 600)
 			if view == "shop-mix-one":
@@ -1084,5 +1150,13 @@ func _verify_release() -> void:
 	if not found or not learning.s.done:
 		get_tree().quit(1)
 		return
-	print("RELEASE_VERIFY_OK: six skins, picnic journey, supply payment, solvable number scale")
+	home.enter("furniture")
+	if home.atlas == null or not home.buy(0, "plant"):
+		get_tree().quit(1)
+		return
+	home.enter()
+	if not home.take_kind(0, "plant") or not home.place(0, Vector2i(2, 2)):
+		get_tree().quit(1)
+		return
+	print("RELEASE_VERIFY_OK: six skins, picnic journey, supply payment, solvable number scale, home atlas and furniture placement")
 	get_tree().quit(0)

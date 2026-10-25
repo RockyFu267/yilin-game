@@ -7,33 +7,49 @@
 - [游戏设计文档](../../docs/games/jerrys-challenge/游戏概述.md)
 - [第一关设计](../../docs/games/jerrys-challenge/第一关设计-一起去野餐.md)
 
-当前版本：**0.4.3 可玩 demo**，Godot **4.7.2 stable**。
+当前版本：**0.5.5 可玩 demo**，Godot **4.7.2 stable**。
+
+方向键玩家 Jerry 的互动统一为 **O**：选人准备、横版拾取和拉杆、俯视购买和搬放均用 O。↓ 在俯视中只负责向下移动。
+
+房间家具支持直接放回库存：空手靠近高亮家具，Tom 按 Q / Jerry 按 Backspace；手持时也可收纳。离开家具后按同一键打开家具包重新取出。钱和家具数量不变，自动保存。
+
+标题“设置”里的“重置小家装饰（含库存全清空）”会删除房间、库存和手持的全部家具并保存，不退款；钱和小店订单保留。日常 Q / Backspace 收纳仍只是放回库存，不删除家具。
+
+标题右上角有“设置”：无限金钱开关、增加 10 元、重置钱袋到 6 元。无限模式下水果和家具不扣普通余额，关闭后恢复正常余额规则；开关保存。重置钱袋保留家具和订单，清空未完成的付款盘。
+
+**新增“我们的小家”**：从标题进入，或两人到冰激凌店楼梯右侧的“新家”小门互动进入俯视房间。房间底部左侧通家具店，右侧回冰激凌店。买家具使用与小店共用的钱，留 3 元进货金；可以打开家具包，拿出家具自由摆放、搬动和换现有朝向，布置自动保存。详见[小家说明](../../docs/games/jerrys-challenge/我们的小家.md)。
+
+俯视操作：Tom 用 WASD 移动、E 互动、R 换朝向、Q 家具包或收纳；Jerry 用方向键移动、O 互动、斜杠键换朝向、Backspace 家具包或收纳。进入俯视后 ↓ 只负责移动，回小店恢复原键位。家具包支持鼠标或左右选择后用互动键取出。
+
+重新进入小店会恢复原订单、库存和钱，暂停菜单可重新集合。家庭存档为 `family_home.json`，保存小店经营与家具布置；旧小店存档首次读取时迁移，持有的家具退出后留在家具包。
+
+家居使用免费 Pixel Lands Interiors Demo。原图受禁止再分发条款限制，不进 Git；开发机和本地构建已导入。其他电脑先从作者处下载免费包，再运行 `tools/asset-pipeline/import_home_assets.ps1` 并重新导入 Godot。缺图时使用占位，详见素材许可。
 
 新增两个独立冒险，标题页选择后仍可选六种角色：
 
 - **数字天平桥**：5、10、20 以内三档。天平一端放目标数，两侧共六张随机数字牌和加减号，保证有解。像拿苹果一样拿牌，放入三个凹槽拼成等于目标的算式，自动平衡开桥；两人一起走到最右侧刷新下一题。空手互动可拿回槽中的牌，持牌离开凹槽再互动可放回地面。不用点确认或拉杆。
-- **数字天平桥**：5、10、20 以内三档。天平一端放目标数，两侧共六张随机数字牌和加减号，保证有解。像拿苹果一样拿牌，放入三个凹槽拼成等于目标的算式，自动平衡开桥；两人一起走到最右侧刷新下一题。空手互动可拿回槽中的牌，持牌离开凹槽再互动可放回地面。不用点确认或拉杆。
+- **冰激凌小铺**：到地下室付钱买苹果、莓果，回店从储物架搬到加工台。两人各站加工区一个金色脚印，同时按住 E / O 制作；完成后取货交给客人，再分配零钱并确认结账。第一单付 5 元，之后付 8 元、10 元。
 
 全程无订单倒计时、效率评分或顾客离场。小店当前只有固定配方，随机的是后续顾客外观；付款找零使用 1 元金币。钱包累计可能超过 10 元，单笔购买、支付和找零练习都在十以内。材料商要求付正好，材料商找零、多配方和限时挑战尚未实现。
 
-新冒险在互动后保存准确状态，包括零钱盘、手持物与库存；暂停可保存回标题继续。小店重试会明确重置整次经营；天平桥重试保留本题，将所有牌放回原位。野餐仍使用独立的原有检查点存档。
+新冒险在互动后保存准确状态，包括零钱盘、手持物与库存；暂停可保存回标题继续。小店重新集合保留经营状态；天平桥重试保留本题，将所有牌放回原位。野餐仍使用独立的原有检查点存档。
 
 已实现标题页、双人六角色选人、脚印教学、收集三个苹果、桥梁接力、各自点灯和野餐结尾。新增供家庭试玩的 Tom 小猫和 Jerry 小老鼠，默认分别预选这两个外观。支持暂停、提示、静音、当前小关重试、伙伴集合及按小关存档继续。主线无死亡与倒计时。
 
 ## 运行
 
-优先双击仓库根目录 `builds/jerrys-challenge/0.4.3/JerrysChallenge.exe`，或运行根目录 `启动游戏.ps1`。发布包与引擎工具保留本地，不提交 Git。
+优先双击仓库根目录 `builds/jerrys-challenge/0.5.5/JerrysChallenge.exe`，或运行根目录 `启动游戏.ps1`。发布包与引擎工具保留本地，不提交 Git。
 
 开发时，用 Godot 4.7.2 导入本目录 `project.godot` 后按 F6/F5 运行，或使用根目录 `启动游戏.ps1`。无需安装 .NET。
 
 | 玩家 | 移动 | 跳跃 | 拾取 / 放下 / 使用机关 |
 | --- | --- | --- | --- |
 | Tom P1 | A / D | W | E |
-| Jerry P2 | ← / → | ↑ | ↓ |
+| Jerry P2 | ← / → | ↑ | O |
 
 选人页：左右切换，互动键准备；双方准备后，再按任一互动键出发。也可用鼠标操作选人按钮。允许两人选择同一个外观，用 P1/P2、名字和不同标记区分。
 
-Esc 暂停，F1 显示/隐藏提示。水果门和野餐灯的双拉杆需要两人同时按住 E 与 ↓，保持 1.8 秒，直到总开关锁定。任一人提前松手、离开拉杆或跳起，拉杆就会回弹，总开关进度清零。花朵桥仍采用按一次的接力规则。退出后“继续上次的冒险”会从当前小关起点恢复，不保留关内临时状态。
+Esc 暂停，F1 显示/隐藏提示。水果门和野餐灯的双拉杆需要两人同时按住 E 与 O，保持 1.8 秒，直到总开关锁定。任一人提前松手、离开拉杆或跳起，拉杆就会回弹，总开关进度清零。花朵桥仍采用按一次的接力规则。退出后“继续上次的冒险”会从当前小关起点恢复，不保留关内临时状态。
 
 ## 验证与构建
 
@@ -42,6 +58,8 @@ Esc 暂停，F1 显示/隐藏提示。水果门和野餐灯的双拉杆需要两
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/smoke.gd
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/learning_smoke.gd
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/shop_journey.gd
+& .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/home_smoke.gd
+& .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/settings_smoke.gd
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --script tests/balance_smoke.gd
 & .tools/godot/Godot_v4.7.2-stable_win64_console.exe --headless --path games/jerrys-challenge --export-release 'Windows Desktop'
 ```

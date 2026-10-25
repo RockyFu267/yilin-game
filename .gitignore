@@ -2,6 +2,8 @@
 .asset-review/
 .tools/
 builds/
+# Licensed home art: local game/build use, not raw-source redistribution.
+/games/jerrys-challenge/assets/home/
 **/.godot/
 *.log
 

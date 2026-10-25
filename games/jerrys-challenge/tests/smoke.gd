@@ -22,6 +22,11 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	check(game.mode == "title" and game.SKINS.size() == 6, "Title loads with six selectable characters")
+	var use_o := InputEventKey.new()
+	use_o.physical_keycode = KEY_O
+	var down := InputEventKey.new()
+	down.physical_keycode = KEY_DOWN
+	check(InputMap.action_has_event("p2_use", use_o) and not InputMap.action_has_event("p2_use", down), "P2 interaction uses O and never the Down movement key")
 	for skin in range(game.SKINS.size()):
 		game.players[0].set_skin(skin)
 		var valid := true
