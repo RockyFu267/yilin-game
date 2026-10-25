@@ -20,7 +20,7 @@ func use_at(i: int, x: float) -> void:
 	lesson.use(i)
 
 func buy(item: int, actor: int) -> void:
-	use_at(actor, 330 + 180 * item)
+	use_at(actor, lesson.supply_x(item))
 	for n in range(item + 1):
 		use_at(actor, 790)
 	use_at(actor, 1060)
@@ -36,25 +36,29 @@ func run() -> void:
 	await process_frame
 	lesson = game.learning
 	lesson.start("shop")
+	lesson.s.recipe = [0, 1]
+	lesson.s.bid = 5
+	lesson.s.cash = 5
+	lesson.accept_offer()
 	use_at(0, 100)
 	check(lesson.s.room == "shop", "Stairs wait for partner")
 	travel()
 	check(lesson.s.room == "supply", "Both travel to basement")
-	use_at(0, 330)
+	use_at(0, lesson.supply_x(0))
 	use_at(0, 1060)
-	check(lesson.s.stock == [0, 0], "Underpayment cannot purchase")
+	check(lesson.s.stock == [0, 0, 0, 0, 0], "Underpayment cannot purchase")
 	use_at(0, 790)
 	use_at(1, 790)
 	use_at(0, 1060)
-	check(lesson.s.wallet == 4 and lesson.s.stock == [0, 0], "Overpayment remains reversible escrow")
+	check(lesson.s.wallet == 4 and lesson.s.stock == [0, 0, 0, 0, 0], "Overpayment remains reversible escrow")
 	use_at(1, 910)
 	use_at(1, 1060)
-	check(lesson.s.wallet == 5 and lesson.s.stock == [1, 0], "Corrected payment purchases once")
+	check(lesson.s.wallet == 5 and lesson.s.stock == [1, 0, 0, 0, 0], "Corrected payment purchases once")
 	use_at(0, 1060)
-	use_at(0, 330)
-	check(lesson.s.stock == [1, 0] and lesson.s.purchase == -1, "Repeat confirm and duplicate buying cannot duplicate ingredients")
+	use_at(0, lesson.supply_x(0))
+	check(lesson.s.stock == [1, 0, 0, 0, 0] and lesson.s.purchase == -1, "Repeat confirm and duplicate buying cannot duplicate ingredients")
 	buy(1, 1)
-	check(lesson.s.wallet == 3 and lesson.s.stock == [1, 1], "Two ingredient costs total three")
+	check(lesson.s.wallet == 3 and lesson.s.stock == [1, 1, 0, 0, 0], "Two ingredient costs total three")
 	travel()
 	use_at(0, 320)
 	use_at(1, 480)
@@ -81,6 +85,7 @@ func run() -> void:
 	use_at(0, 1060)
 	use_at(0, 1060)
 	check(lesson.s.wallet == 8 and lesson.s.served == 1, "Exact tender completes sale and net profit two")
+	lesson.s.cash = 8
 	lesson.s.order = 1
 	lesson.s.phase = "change"
 	lesson.s.tray = 0
@@ -95,6 +100,7 @@ func run() -> void:
 	check(lesson.s.wallet == 8 and lesson.s.tray == 3 and lesson.s.phase == "change", "Save restores exact money, phase and pending change")
 	use_at(0, 1060)
 	check(lesson.s.wallet == 13 and lesson.s.served == 2, "Eight tender minus three change leaves five")
+	lesson.s.cash = 10
 	lesson.s.order = 2
 	lesson.s.phase = "change"
 	lesson.s.tray = 6

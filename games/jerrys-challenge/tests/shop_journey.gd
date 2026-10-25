@@ -37,9 +37,13 @@ func run() -> void:
 	shop = game.learning
 	shop.start("shop")
 	for order in range(3):
+		shop.s.recipe = [0, 1]
+		shop.s.bid = 5
+		shop.s.cash = [5, 8, 10][order]
+		shop.accept_offer()
 		travel()
 		for item in range(2):
-			use_at(item, 330 + item * 180)
+			use_at(item, shop.supply_x(item))
 			for n in range(item + 1):
 				use_at(item, 790)
 			use_at(item, 1060)
@@ -48,7 +52,7 @@ func run() -> void:
 		use_at(1, 480)
 		use_at(0, 650)
 		use_at(1, 650)
-		check(shop.s.phase == "mix" and shop.s.stock == [0, 0] and shop.s.delivered == [1, 1], "Order %d buys and combines real ingredients" % order)
+		check(shop.s.phase == "mix" and shop.s.stock == [0, 0, 0, 0, 0] and shop.s.delivered == [1, 1, 0, 0, 0], "Order %d buys and combines real ingredients" % order)
 		var left := order % 2
 		var right := 1 - left
 		game.players[left].position = Vector2(shop.MIX_LEFT, 600)
@@ -68,7 +72,7 @@ func run() -> void:
 			key(KEY_E, false)
 			key(KEY_O, false)
 			await physics_frame
-			check(shop.charge == 0 and shop.s.phase == "mix" and shop.s.delivered == [1, 1], "Walking away resets processing but preserves ingredients")
+			check(shop.charge == 0 and shop.s.phase == "mix" and shop.s.delivered == [1, 1, 0, 0, 0], "Walking away resets processing but preserves ingredients")
 			game.players[0].position = Vector2(shop.MIX_LEFT, 600)
 			game.players[0].velocity = Vector2.ZERO
 		key(KEY_E, true)
@@ -92,7 +96,7 @@ func run() -> void:
 		check(shop.s.phase == "celebrate" and shop.s.served == order + 1 and shop.s.wallet == 6 + 2 * (order + 1), "Order %d settles once with exact wallet and profit" % order)
 		if order < 2:
 			use_at(left, 1060)
-			check(shop.s.phase == "ingredients" and shop.s.delivered == [0, 0], "Next order resets ingredients after completed sale")
+			check(shop.s.phase == "offer" and shop.s.delivered == [0, 0, 0, 0, 0], "Next order resets ingredients after completed sale")
 	game.queue_free()
 	await process_frame
 	print("SHOP_JOURNEY_RESULT: %d failure(s)" % failures)

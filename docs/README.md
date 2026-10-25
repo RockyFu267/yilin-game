@@ -19,6 +19,7 @@
 - [第一关：一起去野餐](games/jerrys-challenge/第一关设计-一起去野餐.md)
 - [数字天平桥](games/jerrys-challenge/数字天平桥设计.md)：当前玩法，搬数字和加减号组成等式，平衡后过桥刷新下一题。
 - [冰激凌店设计](games/jerrys-challenge/冰激凌店设计.md)：购买水果、合作加工、售卖与十以内找零。
+- [顾客报价与交易](games/jerrys-challenge/顾客报价与交易.md)：随机报价、接单或拒绝、随机付款与成本盈亏。
 - [我们的小家](games/jerrys-challenge/我们的小家.md)：俯视角家具店、共用钱包、双人自由摆放与朝向。
 - [游戏工程目录](../games/jerrys-challenge/)
 

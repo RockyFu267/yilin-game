@@ -25,9 +25,13 @@ func travel() -> void:
 	use_at(0, 100)
 
 func sell_one() -> void:
+	shop.s.recipe = [0, 1]
+	shop.s.bid = 5
+	shop.s.cash = [5, 8, 10][mini(shop.s.served, 2)]
+	shop.accept_offer()
 	travel()
 	for kind in range(2):
-		use_at(kind, 330 + kind * 180)
+		use_at(kind, shop.supply_x(kind))
 		for coin in range(kind + 1): use_at(kind, 790)
 		use_at(kind, 1060)
 	travel()

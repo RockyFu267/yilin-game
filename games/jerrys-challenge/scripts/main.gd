@@ -3,6 +3,7 @@ extends Node2D
 const PlayerScript = preload("res://scripts/player.gd")
 const LearningScript = preload("res://scripts/learning.gd")
 const HomeScript = preload("res://scripts/home.gd")
+const SaveStore = preload("res://scripts/save_store.gd")
 const SKINS = PlayerScript.SKINS
 const SKIN_NAMES = ["青蛙伙伴", "面具伙伴", "粉粉伙伴", "蓝蓝伙伴", "Jerry 小老鼠", "Tom 小猫"]
 const CHAPTERS = ["家门口", "三个苹果", "花朵小桥", "我们的野餐"]
@@ -46,8 +47,17 @@ var texture_cache: Dictionary = {}
 var learning
 var home
 var requested_activity: String = "picnic"
+var name_fields: Array[LineEdit] = []
+var names_return_to_select := false
+var money_input: SpinBox
 
 func _ready() -> void:
+	if not SaveStore.automated_run_safe():
+		push_error("Automated test/capture blocked: use tools/run_checks.ps1 or an isolated APPDATA with YILIN_GAME_QA_DIR.")
+		set_process(false)
+		set_process_unhandled_key_input(false)
+		get_tree().quit(2)
+		return
 	font = SystemFont.new()
 	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "Arial"])
 	bold = SystemFont.new()
@@ -63,7 +73,7 @@ func _ready() -> void:
 	for i in range(2):
 		var actor = PlayerScript.new()
 		actor.player_id = i
-		actor.display_name = "Tom" if i == 0 else "Jerry"
+		actor.display_name = player_name(i)
 		actor.skin = selected[i]
 		actor.label_font = font
 		add_child(actor)
@@ -145,6 +155,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			show_title()
 		elif mode == "settings":
 			show_title()
+		elif mode == "names":
+			_return_from_names()
 		return
 	if mode == "title" and event is InputEventKey and event.physical_keycode == KEY_ENTER:
 		show_select()
@@ -249,11 +261,60 @@ func show_settings() -> void:
 	paused = false
 	for actor in players: actor.active = false
 	_clear_menu()
+	_button("玩家名字", Rect2(40, 27, 180, 42), func(): show_names(false), false)
+	_button("打开存档目录", Rect2(40, 82, 180, 42), func(): OS.shell_open(OS.get_user_data_dir()), false)
 	_button("无限金钱：开 ✓" if home.unlimited() else "无限金钱：关", Rect2(425, 260, 430, 51), func(): home.toggle_unlimited(); show_settings())
-	_button("钱袋增加 10 元", Rect2(425, 328, 430, 48), func(): home.set_money(int(home.state.wallet) + 10); show_settings(), false)
-	_button("重置钱袋为 6 元", Rect2(425, 393, 430, 48), func(): home.set_money(6, true); show_settings(), false)
-	_button("重置小家装饰（含库存全清空）", Rect2(425, 458, 430, 48), func(): home.reset_decorations(); show_settings(), false)
+	money_input = SpinBox.new()
+	money_input.position = Vector2(425, 322)
+	money_input.size = Vector2(250, 45)
+	money_input.min_value = 0
+	money_input.max_value = 999999
+	money_input.step = 1
+	money_input.rounded = true
+	money_input.value = int(home.state.wallet)
+	money_input.get_line_edit().add_theme_font_override("font", font)
+	money_input.get_line_edit().add_theme_font_size_override("font_size", 24)
+	menu.add_child(money_input)
+	_button("应用金额", Rect2(690, 322, 165, 45), func(): money_input.apply(); home.set_money(int(money_input.value)); show_settings())
+	_button("钱袋增加 10 元", Rect2(425, 384, 207, 45), func(): home.set_money(int(home.state.wallet) + 10); show_settings(), false)
+	_button("重置钱袋为 6 元", Rect2(647, 384, 208, 45), func(): home.set_money(6, true); show_settings(), false)
+	_button("重置小家装饰（含库存全清空）", Rect2(425, 445, 430, 48), func(): home.reset_decorations(); show_settings(), false)
 	_button("返回标题", Rect2(425, 560, 430, 48), show_title, false)
+
+func player_name(i: int) -> String:
+	var names = home.state.get("player_names", ["Tom", "Jerry"])
+	return str(names[i]) if names is Array and names.size() == 2 else "玩家%d" % (i + 1)
+
+func set_player_names(first: String, second: String) -> void:
+	var names: Array = []
+	for text in [first, second]:
+		var clean: String = text.replace("\n", "").replace("\r", "").strip_edges().substr(0, 8)
+		names.append(clean if not clean.is_empty() else "玩家%d" % (names.size() + 1))
+	home.state.player_names = names
+	for i in range(players.size()): players[i].display_name = names[i]
+	home.save()
+
+func show_names(from_select: bool = false) -> void:
+	names_return_to_select = from_select
+	mode = "names"
+	_clear_menu()
+	name_fields.clear()
+	for i in range(2):
+		var field := LineEdit.new()
+		field.position = Vector2(490, 246 + i * 75)
+		field.size = Vector2(310, 47)
+		field.text = player_name(i)
+		field.max_length = 8
+		field.add_theme_font_override("font", font)
+		field.add_theme_font_size_override("font_size", 24)
+		menu.add_child(field)
+		name_fields.append(field)
+	_button("保存名字", Rect2(400, 438, 245, 48), func(): set_player_names(name_fields[0].text, name_fields[1].text); _return_from_names())
+	_button("返回", Rect2(670, 438, 180, 48), _return_from_names, false)
+
+func _return_from_names() -> void:
+	if names_return_to_select: show_select()
+	else: show_settings()
 
 func show_select() -> void:
 	mode = "select"
@@ -262,6 +323,7 @@ func show_select() -> void:
 
 func _select_menu() -> void:
 	_clear_menu()
+	_button("修改玩家名字", Rect2(1040, 35, 195, 40), func(): show_names(true), false)
 	for i in range(2):
 		var x := 180 + i * 510
 		_button("‹", Rect2(x + 20, 340, 48, 48), func(): _cycle(i, -1), false)
@@ -385,7 +447,7 @@ func interact(i: int) -> void:
 				deposited += 1
 				_burst(Vector2(780, 510))
 				_ping(520 + deposited * 100)
-				_message("篮子装满啦！Tom 和 Jerry 各按住一个拉杆。" if deposited == 3 else "放好了！再找 %d 个苹果。" % (3 - deposited))
+				_message("篮子装满啦！两位伙伴各按住一个拉杆。" if deposited == 3 else "放好了！再找 %d 个苹果。" % (3 - deposited))
 				return
 			if not actor.carrying:
 				for a in range(apples.size()):
@@ -570,6 +632,12 @@ func _draw() -> void:
 		home.paint()
 	elif mode == "settings":
 		_draw_settings()
+	elif mode == "names":
+		_panel(Rect2(320, 155, 640, 370), Color("49382d"))
+		_center("今天，两位伙伴叫什么？", 207, 29, CREAM, true)
+		_text("P1 · 左侧键盘", Vector2(345, 277), 19, CREAM)
+		_text("P2 · 方向键", Vector2(345, 352), 19, CREAM)
+		_center("名字与角色外观无关，每个名字最多 8 个字。", 405, 18, CREAM)
 	else:
 		_draw_level()
 		_hud()
@@ -577,7 +645,7 @@ func _draw() -> void:
 			draw_rect(Rect2(0, 0, 1280, 720), Color(0.06, 0.17, 0.14, 0.65))
 			_panel(Rect2(260, 158, 760, 370))
 			_center("WE DID IT, TOGETHER!", 214, 17, Color("c1dc91"), true)
-			_center("Tom 和 Jerry，一起完成！", 278, 36, CREAM, true)
+			_center("%s 和 %s，一起完成！" % [player_name(0), player_name(1)], 278, 30, CREAM, true)
 			_center("装满了野餐篮，修好了小桥，也点亮了花园。", 334, 22, CREAM)
 			_center("谢谢你陪我冒险。", 378, 24, Color("c1dc91"), true)
 		elif paused:
@@ -696,15 +764,16 @@ func _draw_title() -> void:
 	_sprite(5, Vector2(183, 595), 4.5)
 	_sprite(4, Vector2(1090, 595), 4.5)
 	_panel(Rect2(42, 641, 484, 55), Color("423e35"))
-	_text("TOM  A / D 移动  W 跳跃  E 互动", Vector2(62, 677), 18, Color("f8dda0"), true)
+	_text("%s  A / D 移动  W 跳跃  E 互动" % player_name(0), Vector2(62, 677), 16, Color("f8dda0"), true)
 	_panel(Rect2(754, 641, 484, 55), Color("423e35"))
-	_text("JERRY  ← / → 移动  ↑ 跳跃  O 互动", Vector2(771, 677), 18, Color("c8ebbc"), true)
+	_text("%s  ← / → 移动  ↑ 跳跃  O 互动" % player_name(1), Vector2(771, 677), 16, Color("c8ebbc"), true)
 	_center("慢慢想，一起玩 · 没有计时", 630, 19, CREAM, true)
 
 func _draw_settings() -> void:
 	_panel(Rect2(340, 130, 600, 510), Color("49382d"))
 	_center("游戏设置", 182, 32, CREAM, true)
 	_center("普通钱袋余额：%d 元" % home.state.wallet, 224, 22, Color("f4d79e"))
+	if not home.storage_notice.is_empty(): _center(home.storage_notice, 652, 17, CREAM)
 	_center("重置钱袋保留家具；重置装饰不改钱和订单。", 527, 17, CREAM)
 	_center("房间、库存和手持家具全部清空，不退购买费用。", 549, 17, CREAM)
 	_center("无限金钱不扣购买费用，关闭后继续使用普通余额。", 629, 17, Color("f4d79e"))
@@ -722,7 +791,7 @@ func _draw_select() -> void:
 	for i in range(2):
 		var x := 180 + i * 510
 		_panel(Rect2(x, 180, 390, 380), Color("4b3931") if i == 0 else Color("354c3c"), 25)
-		_center("P%d  /  %s" % [i + 1, "Tom" if i == 0 else "Jerry"], 224, 23, CREAM, true, x + 195)
+		_center("P%d  /  %s" % [i + 1, player_name(i)], 224, 23, CREAM, true, x + 195)
 		draw_rect(Rect2(x + 110, 275, 170, 140), Color("26372f"))
 		draw_rect(Rect2(x + 105, 410, 180, 12), Color("b38b50"))
 		_sprite(selected[i], Vector2(x + 195, 410), 4)
@@ -775,7 +844,7 @@ func _draw_level() -> void:
 			for i in range(2):
 				var x := 460 + i * 360
 				_lever(Vector2(x, 585), lights[i], Color("ffc878") if i == 0 else Color("8edcb7"))
-				var label := "Tom · 按住 E" if i == 0 else "Jerry · 按住 O"
+				var label := "%s · 按住 %s" % [player_name(i), "E" if i == 0 else "O"]
 				if lights[i] and not solved:
 					label = "保持住，等伙伴！" if not lights[1 - i] else "保持住！"
 				_prompt(x, 470, label, solved)
@@ -806,9 +875,9 @@ func _hud() -> void:
 		draw_rect(Rect2(pos - Vector2(2, 2), Vector2(18, 18)), Color("3c302e"))
 		draw_rect(Rect2(pos, Vector2(14, 14)), Color("dcb36a") if i <= stage else Color("4e6552"))
 	_panel(Rect2(28, 650, 464, 46), Color("393b31"))
-	_text("Tom   A / D 移动   W 跳跃   E 互动", Vector2(46, 680), 17, Color("ffe0a2"))
+	_text("%s   A / D 移动   W 跳跃   E 互动" % player_name(0), Vector2(46, 680), 16, Color("ffe0a2"))
 	_panel(Rect2(776, 650, 476, 46), Color("393b31"))
-	_text("Jerry   ← / → 移动   ↑ 跳跃   O 互动", Vector2(792, 680), 17, Color("c4eab7"))
+	_text("%s   ← / → 移动   ↑ 跳跃   O 互动" % player_name(1), Vector2(792, 680), 16, Color("c4eab7"))
 	var message := ""
 	if toast_time > 0:
 		message = toast
@@ -967,6 +1036,59 @@ func _capture_demo(path: String) -> void:
 		if arg.begins_with("--view="):
 			view = arg.trim_prefix("--view=")
 	match view:
+		"ice-berry-kiwi", "ice-orange-banana", "ice-carried":
+			learning.start("shop")
+			learning.s.recipe = [1, 4] if view != "ice-orange-banana" else [2, 3]
+			learning.s.phase = "ready"
+			learning.message = "冰激凌的两层颜色对应订单里的两种水果。"
+			if view == "ice-carried":
+				learning.s.phase = "serve"
+				learning.s.hands[0] = "ice"
+				players[0].position = Vector2(650, 600)
+		"fruit-offer", "fruit-supply", "fruit-mix":
+			learning.start("shop")
+			learning.s.recipe = [1, 4]
+			learning.s.bid = 8
+			learning.s.cash = 10
+			learning.s.phase = "offer"
+			learning.message = "客人想吃%s，愿出 8 元。成本 %s，接单还是下一位？" % [learning.recipe_names(), learning.cost_expression()]
+			if view == "fruit-supply":
+				learning.s.room = "supply"
+				learning.s.phase = "ingredients"
+				learning.s.accepted_offer = true
+				learning.message = "按订单挑两种水果，各自付款，再回楼上加工。"
+			if view == "fruit-mix":
+				learning.s.phase = "mix"
+				learning.s.delivered = [0, 1, 0, 0, 1]
+				learning.message = "两种口味放齐啦！各站一个脚印，同时按住 E / O。"
+				players[0].position = Vector2(learning.MIX_LEFT, 600)
+				players[1].position = Vector2(learning.MIX_RIGHT, 600)
+		"names", "select-names":
+			set_player_names("Jerry", "小伙伴")
+			if view == "names": show_names(false)
+			else: show_select()
+		"furniture-new":
+			home.enter("furniture")
+			home.display_page = 1
+		"home-new":
+			home.state.items = []
+			for data in [["table", 5, 2], ["rug", 5, 2], ["tv", 11, 1], ["fan", 14, 1], ["plate", 5, 2], ["cup", 6, 2], ["cutlery", 7, 2], ["kettle", 5, 3], ["chair", 4, 5]]:
+				home.state.items.append({"uid": home.state.items.size() + 1, "kind": data[0], "room": "home", "cell": [data[1], data[2]], "dir": 0})
+			home.state.next_uid = home.state.items.size() + 1
+			home.enter()
+		"shop-offer-low", "shop-offer-high", "shop-new-change":
+			learning.start("shop")
+			learning.s.recipe = [0, 1]
+			learning.s.bid = 2 if view == "shop-offer-low" else 6
+			learning.s.cash = 5 if view == "shop-offer-low" else 9
+			learning.s.phase = "offer"
+			learning.message = "这位客人愿出 %d 元。苹果 1 元、莓果 2 元，接单还是下一位？" % learning.price()
+			if view == "shop-new-change":
+				learning.s.bid = 4
+				learning.s.cash = 7
+				learning.s.phase = "change"
+				learning.s.tray = 2
+				learning.message = "成交 4 元，客人付 7 元。分出要还给客人的零钱，再确认。"
 		"settings":
 			show_settings()
 		"home-demo", "home-preview", "home-bag", "home-store":
@@ -991,7 +1113,10 @@ func _capture_demo(path: String) -> void:
 			home.enter("furniture" if view == "furniture" else "home")
 		"shop-mix", "shop-mix-one", "shop-change":
 			learning.start("shop")
-			learning.s.delivered = [1, 1]
+			learning.s.bid = 5
+			learning.s.cash = 8 if view == "shop-change" else 5
+			learning.s.delivered = [1, 1, 0, 0, 0]
+			learning.s.recipe = [0, 1]
 			learning.s.phase = "change" if view == "shop-change" else "mix"
 			if view == "shop-change":
 				learning.s.order = 1
@@ -1118,15 +1243,17 @@ func _verify_release() -> void:
 		get_tree().quit(1)
 		return
 	learning.start("shop")
+	learning.s.recipe = [0, 1]
+	learning.accept_offer()
 	learning.s.room = "supply"
 	players[0].velocity = Vector2.ZERO
-	players[0].position = Vector2(330, 600)
+	players[0].position = Vector2(learning.supply_x(0), 600)
 	learning.use(0)
 	players[0].position.x = 790
 	learning.use(0)
 	players[0].position.x = 1060
 	learning.use(0)
-	if learning.s.stock != [1, 0] or learning.s.wallet != 5:
+	if learning.s.stock != [1, 0, 0, 0, 0] or learning.s.wallet != 5:
 		get_tree().quit(1)
 		return
 	learning.start("ducks20")

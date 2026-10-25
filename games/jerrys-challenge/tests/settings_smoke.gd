@@ -38,8 +38,10 @@ func run() -> void:
 	check(click("重置钱袋") and home.state.wallet == 6, "Visible reset button restores six")
 	game.show_title()
 	shop.start("shop")
+	shop.s.recipe = [0, 1]
+	shop.accept_offer()
 	shop.s.room = "supply"
-	use_at(330)
+	use_at(shop.supply_x(0))
 	use_at(790)
 	check(shop.s.wallet == 5 and shop.s.tray == 1, "Normal mode pays a real coin")
 	game.show_settings()
@@ -53,13 +55,13 @@ func run() -> void:
 	check(shop.s.wallet == 6 and shop.s.tray == 0, "Mixed ordinary and free coins refund only genuinely paid money")
 	use_at(790)
 	use_at(1060)
-	check(shop.s.stock == [1, 0] and shop.s.wallet == 6, "Unlimited ingredient purchase keeps exact-payment puzzle without charging wallet")
+	check(shop.s.stock == [1, 0, 0, 0, 0] and shop.s.wallet == 6, "Unlimited ingredient purchase keeps exact-payment puzzle without charging wallet")
 	home.set_money(0, true)
-	use_at(510)
+	use_at(shop.supply_x(1))
 	use_at(790)
 	use_at(790)
 	use_at(1060)
-	check(shop.s.stock == [1, 1] and shop.s.wallet == 0 and home.state.wallet == 0, "Unlimited mode can purchase fruit at zero ordinary balance")
+	check(shop.s.stock == [1, 1, 0, 0, 0] and shop.s.wallet == 0 and home.state.wallet == 0, "Unlimited mode can purchase fruit at zero ordinary balance")
 	home.enter("furniture")
 	check(home.buy(0, "bed") and home.state.wallet == 0 and home.state.items.size() == 1, "Unlimited furniture bypasses reserve and charges no hidden balance")
 	var loaded = game.HomeScript.new(game)
@@ -71,12 +73,12 @@ func run() -> void:
 	game.show_settings()
 	click("钱袋增加")
 	shop.start("shop")
-	check(shop.s.wallet == 10 and shop.s.stock == [1, 1], "Settings money synchronizes with saved and active shop without resetting inventory")
+	check(shop.s.wallet == 10 and shop.s.stock == [1, 1, 0, 0, 0], "Settings money synchronizes with saved and active shop without resetting inventory")
 	shop.s.room = "supply"
 	# Simulate pending payment from a later order, then use the actual reset UI.
-	shop.s.stock = [0, 0]
+	shop.s.stock = [0, 0, 0, 0, 0]
 	shop.persist()
-	use_at(330)
+	use_at(shop.supply_x(0))
 	use_at(790)
 	game.show_settings()
 	click("重置钱袋")

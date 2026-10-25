@@ -1,5 +1,7 @@
 extends RefCounted
 
+const SaveStore = preload("res://scripts/save_store.gd")
+
 const SAVE := "user://family_home.json"
 const ATLAS := "res://assets/home/interiors_demo.png"
 const CELL := 48
@@ -17,7 +19,14 @@ const GOODS := [
 	{"id": "table", "name": "木餐桌", "price": 4, "size": [3, 2], "art": [[192, 144, 48, 32]], "solid": true},
 	{"id": "sofa", "name": "小沙发", "price": 5, "size": [3, 1], "art": [[0, 128, 48, 32], [80, 128, 48, 32]], "solid": true},
 	{"id": "bed", "name": "小床", "price": 6, "size": [2, 3], "art": [[224, 32, 32, 64]], "solid": true},
-	{"id": "shelf", "name": "书柜", "price": 4, "size": [2, 1], "art": [[160, 128, 32, 48]], "solid": true}
+	{"id": "shelf", "name": "书柜", "price": 4, "size": [2, 1], "art": [[160, 128, 32, 48]], "solid": true},
+	{"id": "tv", "name": "电视机", "price": 8, "size": [2, 1], "art": [[0, 0, 32, 32]], "solid": true, "own": true},
+	{"id": "plate", "name": "餐盘", "price": 1, "size": [1, 1], "art": [[0, 0, 16, 16]], "solid": false, "own": true, "tabletop": true},
+	{"id": "cutlery", "name": "餐具", "price": 2, "size": [1, 1], "art": [[0, 0, 16, 16]], "solid": false, "own": true, "tabletop": true},
+	{"id": "cup", "name": "水杯", "price": 1, "size": [1, 1], "art": [[0, 0, 16, 16]], "solid": false, "own": true, "tabletop": true},
+	{"id": "fan", "name": "电风扇", "price": 5, "size": [1, 1], "art": [[0, 0, 16, 32]], "solid": true, "own": true},
+	{"id": "kettle", "name": "水壶", "price": 3, "size": [1, 1], "art": [[0, 0, 16, 16]], "solid": false, "own": true, "tabletop": true},
+	{"id": "dining_chair", "name": "餐椅", "price": 2, "size": [1, 1], "art": [[128, 96, 16, 32], [144, 96, 16, 32], [160, 96, 16, 32], [176, 96, 16, 32]], "solid": true}
 ]
 var h
 var state: Dictionary = {"version": 1, "wallet": 6, "next_uid": 1, "items": [], "shop": {}, "unlimited_money": false}
@@ -33,13 +42,18 @@ var menu_kind := ""
 var bag_owner := 0
 var bag_choice := 0
 var atlas: Texture2D
+var owned_textures: Dictionary = {}
+var display_page := 0
+var storage_notice := ""
 
 func _init(host) -> void:
 	h = host
-	if FileAccess.file_exists(SAVE):
-		var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
-		if data is Dictionary and data.get("version") == 1 and data.get("items") is Array and (data.get("wallet") is float or data.get("wallet") is int):
-			state = data
+	var loaded := SaveStore.read_family(SAVE)
+	if not loaded.data.is_empty():
+		state = loaded.data
+		if loaded.recovered: storage_notice = "存档读取异常，已从自动备份恢复。"
+	elif loaded.invalid:
+		storage_notice = "旧存档读取失败；原文件会保留在备份目录。"
 	elif FileAccess.file_exists("user://learning_progress.json"):
 		var old = JSON.parse_string(FileAccess.get_file_as_string("user://learning_progress.json"))
 		if old is Dictionary and old.get("activity") == "shop" and old.get("state") is Dictionary:
@@ -47,11 +61,35 @@ func _init(host) -> void:
 			state.shop = old.state.duplicate(true)
 	if ResourceLoader.exists(ATLAS):
 		atlas = load(ATLAS)
+	_build_owned_art()
+
+func _build_owned_art() -> void:
+	# Original code-drawn pixel objects fill gaps in the free furniture demo.
+	var shapes := {
+		"tv": [[2,4,28,22,"493d3b"],[4,6,22,17,"82aaa6"],[6,8,18,12,"b9dfce"],[8,9,12,2,"e0efcf"],[27,9,2,3,"e3bb70"],[27,15,2,2,"c16d59"],[7,26,4,3,"604738"],[23,26,4,3,"604738"],[9,29,17,2,"aa7b4c"],[12,0,2,5,"765b46"],[14,3,7,2,"765b46"]],
+		"plate": [[3,3,10,10,"849b94"],[1,5,14,6,"b8d2ca"],[4,2,8,12,"e4e7cc"],[2,5,12,6,"e4e7cc"],[5,5,6,6,"9fc0b4"],[6,6,4,4,"d5e1c5"]],
+		"cutlery": [[2,2,1,4,"e4ddbd"],[4,2,1,4,"e4ddbd"],[6,2,1,4,"e4ddbd"],[2,6,5,2,"b6c2bc"],[4,8,2,6,"9baea8"],[11,2,2,8,"dddcc2"],[10,3,3,5,"dddcc2"],[11,10,2,4,"9baea8"]],
+		"cup": [[3,3,8,11,"6b9292"],[4,4,6,9,"a4d6d1"],[4,3,6,2,"e4e7cf"],[11,5,4,6,"8ab9b4"],[11,7,2,2,"4a665f"],[4,12,6,2,"5e8a88"]],
+		"fan": [[3,2,10,2,"647e7d"],[1,4,14,12,"647e7d"],[3,3,10,15,"a8c6bd"],[2,5,12,10,"d1dfc8"],[7,6,2,8,"6f9c9d"],[4,8,8,3,"6f9c9d"],[6,6,3,3,"8bb7ad"],[8,11,3,3,"8bb7ad"],[7,17,2,10,"628680"],[4,27,8,2,"b1c9b7"],[2,29,12,2,"6a9188"]],
+		"kettle": [[4,5,9,8,"d4c5a0"],[5,4,7,2,"dcae6d"],[7,2,4,2,"6b5d4e"],[1,7,4,3,"bda985"],[0,5,2,3,"d4c5a0"],[13,5,2,7,"705f4d"],[12,5,3,2,"705f4d"],[4,12,9,2,"a9926f"],[7,7,4,3,"e6d7b2"]]
+	}
+	for entry in GOODS:
+		if not entry.get("own", false): continue
+		var source: Array = entry.art[0]
+		var image := Image.create(source[2], source[3], false, Image.FORMAT_RGBA8)
+		image.fill(Color.TRANSPARENT)
+		for part in shapes[entry.id]:
+			image.fill_rect(Rect2i(part[0], part[1], part[2], part[3]), Color(part[4]))
+		owned_textures[entry.id] = ImageTexture.create_from_image(image)
+
+func art_texture(kind: String) -> Texture2D:
+	return owned_textures.get(kind, atlas)
 
 func save() -> void:
-	var file := FileAccess.open(SAVE, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(state))
+	var error := SaveStore.write_family(SAVE, state)
+	if error != OK:
+		storage_notice = "保存失败，请查看存档目录的读写权限。"
+		push_error("Family save failed: " + str(error))
 
 func capture_shop(snapshot: Dictionary) -> void:
 	state.wallet = int(snapshot.wallet)
@@ -91,7 +129,7 @@ func enter(destination: String = "home") -> void:
 		p.set_skin(h.selected[p.player_id])
 	positions = [cell_center(Vector2i(8, 6)), cell_center(Vector2i(10, 6))]
 	facing = [Vector2i.UP, Vector2i.UP]
-	message = "靠近家具按 Q / Backspace 收回库存；空地按同一键打开家具包。" if room == "home" else ("无限金钱已开启，走近家具按 E / O 购买。" if unlimited() else "走到喜欢的家具旁，按 E / O 购买。预留 3 元买水果，其余可装修。")
+	message = "靠近家具按 Q / Backspace 收回库存；空地按同一键打开家具包。" if room == "home" else ("无限金钱已开启，走近家具按 E / O 购买。" if unlimited() else "走到喜欢的家具旁，按 E / O 购买。预留 3 元备用金，其余可装修。")
 	buttons()
 	save()
 
@@ -99,6 +137,15 @@ func buttons() -> void:
 	menu_kind = ""
 	h._clear_menu()
 	h._button("休息 Esc", Rect2(1100, 23, 150, 42), escape, false)
+	if room == "furniture":
+		h._button("← 上一页", Rect2(775, 23, 140, 42), func(): turn_page(-1), false)
+		h._button("下一页 →", Rect2(930, 23, 140, 42), func(): turn_page(1), false)
+
+func turn_page(turn: int) -> void:
+	if h.mode != "home" or h.paused or room != "furniture": return
+	display_page = posmod(display_page + turn, int(ceil(GOODS.size() / 8.0)))
+	message = "家具第 %d 页；右上角鼠标翻页，走近商品按 E / O 购买。" % (display_page + 1)
+	buttons()
 
 func pack_all() -> void:
 	hands = [-1, -1]
@@ -220,21 +267,25 @@ func bag_menu(i: int, reset: bool = true) -> void:
 	h.paused = true
 	menu_kind = "bag"
 	h._clear_menu()
-	for n in range(GOODS.size()):
+	var page := int(bag_choice / 8)
+	for n in range(page * 8, mini(page * 8 + 8, GOODS.size())):
 		var entry: Dictionary = GOODS[n]
 		var caption: String = ("▶ " if n == bag_choice else "") + entry.name + " × %d" % inventory_count(entry.id)
-		var button: Button = h._button(caption, Rect2(345 + n % 2 * 305, 237 + int(n / 2) * 65, 285, 49), func(): take_kind(i, entry.id), n == bag_choice)
-		if atlas:
+		var local := n % 8
+		var button: Button = h._button(caption, Rect2(345 + local % 2 * 305, 237 + int(local / 2) * 65, 285, 49), func(): take_kind(i, entry.id), n == bag_choice)
+		if art_texture(entry.id):
 			var source: Array = entry.art[0]
 			var icon := Sprite2D.new()
 			var texture := AtlasTexture.new()
-			texture.atlas = atlas
+			texture.atlas = art_texture(entry.id)
 			texture.region = Rect2(source[0], source[1], source[2], source[3])
 			icon.texture = texture
 			icon.position = Vector2(28, 24)
 			icon.scale = Vector2.ONE * minf(39.0 / source[2], 39.0 / source[3])
 			button.add_child(icon)
-	h._button("关上家具包 Esc", Rect2(465, 516, 350, 43), escape, false)
+	h._button("上一页", Rect2(345, 516, 140, 43), func(): bag_choice = posmod(page - 1, int(ceil(GOODS.size() / 8.0))) * 8; bag_menu(i, false), false)
+	h._button("关上家具包 Esc", Rect2(495, 516, 270, 43), escape, false)
+	h._button("下一页", Rect2(775, 516, 140, 43), func(): bag_choice = posmod(page + 1, int(ceil(GOODS.size() / 8.0))) * 8; bag_menu(i, false), false)
 
 func take_kind(i: int, kind: String) -> bool:
 	if hands[i] >= 0: return false
@@ -253,7 +304,7 @@ func buy(i: int, kind: String) -> bool:
 	if room != "furniture": return false
 	var entry := good(kind)
 	if not unlimited() and int(state.wallet) - int(entry.price) < RESERVE:
-		message = "这件 %d 元，可装修的钱有 %d 元；我们留 3 元继续买水果。" % [entry.price, maxi(0, int(state.wallet) - RESERVE)]
+		message = "这件 %d 元，可装修的钱有 %d 元；我们留 3 元作备用金。" % [entry.price, maxi(0, int(state.wallet) - RESERVE)]
 		return false
 	if not unlimited(): state.wallet -= int(entry.price)
 	var owned := {"uid": int(state.next_uid), "kind": kind, "room": "inventory", "cell": [0, 0], "dir": 0}
@@ -284,12 +335,23 @@ func can_place(i: int, cell: Vector2i) -> bool:
 	var source: Array = good(entry.kind).art[posmod(directions[i], good(entry.kind).art.size())]
 	if rect.end.y - source[3] * 3 < ORIGIN.y - 64: return false
 	for other in state.items:
-		if other.room == "home" and good(other.kind).solid == good(entry.kind).solid and rect.intersects(item_rect(other)):
+		if other.room == "home" and placement_layer(other.kind) == placement_layer(entry.kind) and rect.intersects(item_rect(other)):
 			return false
 	if good(entry.kind).solid:
 		for pos in positions:
 			if rect.intersects(avatar_rect(pos)): return false
 	return true
+
+func placement_layer(kind: String) -> String:
+	return "surface" if good(kind).get("tabletop", false) else ("solid" if good(kind).solid else "floor")
+
+func furniture_depth(entry: Dictionary) -> float:
+	var depth := item_rect(entry).end.y
+	if good(entry.kind).get("tabletop", false):
+		for other in state.items:
+			if other.room == "home" and good(other.kind).solid and item_rect(entry).intersects(item_rect(other)):
+				depth = maxf(depth, item_rect(other).end.y + 0.1)
+	return depth
 
 func place(i: int, cell: Vector2i) -> bool:
 	if not can_place(i, cell):
@@ -368,7 +430,7 @@ func use(i: int) -> void:
 	if room == "furniture":
 		var closest := -1
 		var distance := 95.0
-		for n in range(GOODS.size()):
+		for n in range(display_page * 8, mini(display_page * 8 + 8, GOODS.size())):
 			var d := positions[i].distance_to(display_pos(n))
 			if d < distance:
 				distance = d
@@ -383,15 +445,17 @@ func use(i: int) -> void:
 	bag_menu(i)
 
 func display_pos(index: int) -> Vector2:
-	return Vector2(ORIGIN.x + 72 + index % 4 * CELL * 4, 336 + int(index / 4) * 176)
+	var local := index % 8
+	return Vector2(ORIGIN.x + 72 + local % 4 * CELL * 4, 336 + int(local / 4) * 176)
 
 func draw_art(entry: Dictionary, rect: Rect2, direction: int, tint: Color = Color.WHITE, factor: float = 3.0) -> void:
 	var variants: Array = good(entry.kind).art
 	var source: Array = variants[posmod(direction, variants.size())]
 	var size := Vector2(source[2], source[3]) * factor
 	var target := Rect2(Vector2(rect.get_center().x - size.x / 2, rect.end.y - size.y), size)
-	if atlas:
-		h.draw_texture_rect_region(atlas, target, Rect2(source[0], source[1], source[2], source[3]), tint)
+	var texture := art_texture(entry.kind)
+	if texture:
+		h.draw_texture_rect_region(texture, target, Rect2(source[0], source[1], source[2], source[3]), tint)
 	else:
 		h.draw_rect(rect.grow(-5), Color("b88e62") * tint)
 		h._center(good(entry.kind).name, rect.end.y - 8, 17, h.CREAM, false, rect.get_center().x)
@@ -407,7 +471,7 @@ func paint_actor(i: int) -> void:
 	h.draw_set_transform(pos, 0, Vector2(face_x[i], 1))
 	h.draw_texture_rect_region(texture, Rect2(-32, -64, 64, 64), Rect2(frame * 32, 0, 32, 32))
 	h.draw_set_transform(Vector2.ZERO)
-	h._center("Tom" if i == 0 else "Jerry", pos.y - 65, 14, Color("ffe4a1") if i == 0 else Color("baf0d1"), true, pos.x)
+	h._center(h.player_name(i), pos.y - 65, 14, Color("ffe4a1") if i == 0 else Color("baf0d1"), true, pos.x)
 	if hands[i] >= 0:
 		h._center("搬着：" + good(item(hands[i]).kind).name, pos.y - 86, 15, h.CREAM, false, pos.x)
 
@@ -432,12 +496,12 @@ func paint() -> void:
 	if room == "home":
 		for entry in state.items:
 			if entry.room != "home": continue
-			if not good(entry.kind).solid:
+			if placement_layer(entry.kind) == "floor":
 				draw_art(entry, item_rect(entry), int(entry.dir))
 			else:
-				sorted.append({"y": item_rect(entry).end.y, "item": entry})
+				sorted.append({"y": furniture_depth(entry), "item": entry})
 	else:
-		for n in range(GOODS.size()):
+		for n in range(display_page * 8, mini(display_page * 8 + 8, GOODS.size())):
 			var entry: Dictionary = GOODS[n]
 			var pos := display_pos(n)
 			var rect := Rect2(pos - Vector2(50, 48), Vector2(100, 48))
@@ -467,13 +531,15 @@ func paint() -> void:
 		draw_art(entry, rect, directions[i], Color(1, 1, 1, 0.65))
 	h._panel(Rect2(25, 18, 730, 75), Color("49382d"))
 	h._text("我们的小家" if room == "home" else "森林家具店", Vector2(45, 49), 25, h.CREAM, true)
-	h._text("无限金钱 · 水果和家具不扣钱" if unlimited() else "共用钱袋 %d 元 · 可装修 %d 元 · 留 3 元买水果" % [state.wallet, maxi(0, int(state.wallet) - RESERVE)], Vector2(45, 79), 18, Color("f4d79e"))
+	h._text("无限金钱 · 水果和家具不扣钱" if unlimited() else "共用钱袋 %d 元 · 可装修 %d 元 · 留 3 元备用金" % [state.wallet, maxi(0, int(state.wallet) - RESERVE)], Vector2(45, 79), 18, Color("f4d79e"))
+	if room == "furniture":
+		h._center("第 %d / %d 页 · 鼠标翻页" % [display_page + 1, int(ceil(GOODS.size() / 8.0))], 82, 17, h.CREAM, false, 925)
 	h._panel(Rect2(25, 105, 1230, 45), Color("49382d"))
 	var size := 18 if h.font.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x < 1180 else 15
 	h._center(message, 134, size, h.CREAM)
 	h._panel(Rect2(25, 655, 1230, 48), Color("49382d"))
-	h._center("Tom  WASD / E搬放 / R转向 / Q收纳或家具包     Jerry  方向键 / O搬放 / 斜杠转向 / Backspace收纳或家具包", 685, 16, h.CREAM)
+	h._center("%s  WASD / E搬放 / R转向 / Q收纳或家具包     %s  方向键 / O搬放 / 斜杠转向 / Backspace收纳或家具包" % [h.player_name(0), h.player_name(1)], 685, 15, h.CREAM)
 	if h.paused:
 		h.draw_rect(Rect2(0, 0, 1280, 720), Color(0.1, 0.15, 0.13, 0.8))
 		h._panel(Rect2(310, 166, 660, 410))
-		h._center(("Tom" if bag_owner == 0 else "Jerry") + " 的家具包 · 左右选择，互动取出" if menu_kind == "bag" else "小家会等你回来", 208, 23, h.CREAM, true)
+		h._center(h.player_name(bag_owner) + " 的家具包 · 左右选择，互动取出" if menu_kind == "bag" else "小家会等你回来", 208, 23, h.CREAM, true)

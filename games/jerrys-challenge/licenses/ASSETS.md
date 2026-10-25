@@ -12,6 +12,8 @@ The author's source page explicitly permits distribution, remixing, adaptation,
 and commercial use without required attribution. The original archive contains
 no separate license file, so this record identifies the source and license.
 The four original platformer character sets, terrain and fruits use this CC0 pack.
+The Orange, Bananas and Kiwi fruit sheets added in 0.7.0 are also reused from
+the same local Pixel Adventure 1 free CC0 package, without generated replacements.
 
 Two additional Tom and Jerry fan-character sprite sets were created with the
 built-in imagegen tool for the user's private family demo on 2026-10-23. Their
@@ -48,6 +50,15 @@ used for home furniture. Chair and sofa orientations select existing regions;
 other furniture retains its single authored view. The top-down prototype reuses
 the selected platformer character sprites; new four-direction character art is
 not included in this version.
+The green four-view dining chair added in 0.7.3 also uses regions of the same
+locally imported free Pixel Lands demo atlas, under the same license.
+
+Additional household goods in 0.6.0 (TV, plate, cutlery, cup, fan and kettle)
+are original code-drawn pixel sprites created in `scripts/home.gd`. They are
+generated in memory, use no downloaded or paid art, and are not claimed to be
+part of Pixel Lands. Existing chairs and other demo furniture remain reused
+under their original terms. Small tableware uses a separate placement layer
+so it can be displayed above a dining table without replacing the table.
 
 This game uses the Godot Engine under the MIT license. See GODOT-LICENSE.txt
 and https://godotengine.org/license/ .
