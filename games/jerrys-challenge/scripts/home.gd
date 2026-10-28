@@ -45,6 +45,45 @@ var atlas: Texture2D
 var owned_textures: Dictionary = {}
 var display_page := 0
 var storage_notice := ""
+# Furniture play is transient: never changes ownership or the saved arrangement.
+var play: Array = [{}, {}]
+
+func playable(kind: String) -> bool:
+	return kind in ["bed", "chair", "dining_chair", "sofa"]
+
+func leave_play(i: int) -> bool:
+	if play[i].is_empty(): return true
+	var entry := item(int(play[i].uid))
+	var rect := item_rect(entry)
+	var candidates: Array[Vector2] = [Vector2(rect.get_center().x, rect.end.y + 24), Vector2(rect.position.x - 28, rect.end.y), Vector2(rect.end.x + 28, rect.end.y), Vector2(rect.get_center().x, rect.position.y - 22)]
+	for pos in candidates:
+		if walkable(pos):
+			positions[i] = pos
+			play[i] = {}
+			return true
+	message = "旁边有家具挡住了，先请伙伴挪开周围的家具。"
+	return false
+
+func use_furniture(i: int, uid: int) -> bool:
+	var entry := item(uid)
+	if not playable(entry.kind): return false
+	for n in range(2):
+		if n != i and not play[n].is_empty() and int(play[n].uid) == uid:
+			message = "伙伴正在这里玩，试试另一张床或椅子吧！"
+			return true
+	play[i] = {"uid": uid, "pose": "stand" if entry.kind == "bed" else "sit", "jump": 0.0}
+	var rect := item_rect(entry)
+	positions[i] = Vector2(rect.get_center().x, rect.end.y - (48 if entry.kind == "bed" else 22))
+	moving[i] = false
+	message = "E / O 切换姿势；W / ↑ 蹦蹦；左右或向下离开。R / 斜杠搬动，Q / Backspace 收纳。"
+	return true
+
+func jump_furniture(i: int) -> void:
+	if play[i].is_empty() or float(play[i].jump) > 0: return
+	play[i].pose = "stand"
+	play[i].jump = 0.72
+	h._ping(620)
+
 
 func _init(host) -> void:
 	h = host
@@ -148,6 +187,7 @@ func turn_page(turn: int) -> void:
 	buttons()
 
 func pack_all() -> void:
+	play = [{}, {}]
 	hands = [-1, -1]
 	directions = [0, 0]
 
@@ -202,6 +242,12 @@ func walkable(pos: Vector2) -> bool:
 
 func tick(delta: float) -> void:
 	for i in range(2):
+		if not play[i].is_empty():
+			play[i].jump = maxf(0.0, float(play[i].jump) - delta)
+			var sideways := Input.get_axis("p%d_left" % (i + 1), "p%d_right" % (i + 1))
+			if absf(sideways) > 0.1 or Input.is_action_pressed("home_p%d_down" % (i + 1)):
+				leave_play(i)
+			continue
 		var direction := Input.get_vector("p%d_left" % (i + 1), "p%d_right" % (i + 1), "home_p%d_up" % (i + 1), "home_p%d_down" % (i + 1))
 		moving[i] = direction.length() > 0.1
 		if not moving[i]: continue
@@ -231,7 +277,9 @@ func input(event: InputEventKey) -> void:
 				elif event.physical_keycode == use_key:
 					take_kind(i, GOODS[bag_choice].id)
 			continue
-		if event.physical_keycode == use_key:
+		if not play[i].is_empty() and event.physical_keycode == (KEY_W if i == 0 else KEY_UP):
+			jump_furniture(i)
+		elif event.physical_keycode == use_key:
 			use(i)
 		elif event.physical_keycode == (KEY_R if i == 0 else KEY_SLASH):
 			rotate(i)
@@ -363,11 +411,15 @@ func place(i: int, cell: Vector2i) -> bool:
 	entry.dir = directions[i]
 	hands[i] = -1
 	save()
-	message = "摆好啦！E / O 搬动；靠近按 Q / Backspace 收回库存。"
+	message = "摆好啦！床椅用 E / O 玩耍、R / 斜杠搬动；Q / Backspace 收回库存。"
 	return true
 
 func rotate(i: int) -> void:
-	if hands[i] < 0: return
+	if hands[i] < 0:
+		var uid := int(play[i].uid) if not play[i].is_empty() else nearby_furniture(i)
+		if uid >= 0 and playable(item(uid).kind):
+			if leave_play(i): pickup(i, uid)
+		return
 	var count: int = good(item(hands[i]).kind).art.size()
 	if count == 1:
 		message = "这件素材目前只有一个朝向；椅子有四向，沙发有前后两向。"
@@ -378,6 +430,10 @@ func rotate(i: int) -> void:
 func pickup(i: int, uid: int) -> bool:
 	var entry := item(uid)
 	if room != "home" or hands[i] >= 0 or entry.is_empty() or entry.room != "home" or uid in hands: return false
+	for active in play:
+		if not active.is_empty() and int(active.uid) == uid:
+			message = "伙伴正在使用这件家具，等下来再搬吧。"
+			return false
 	if item_rect(entry).grow(52).has_point(positions[i]):
 		entry.room = "inventory"
 		hands[i] = uid
@@ -401,7 +457,12 @@ func nearby_furniture(i: int) -> int:
 
 func store_nearby(i: int) -> bool:
 	if room != "home" or h.paused: return false
-	var uid: int = hands[i] if hands[i] >= 0 else nearby_furniture(i)
+	var uid: int = int(play[i].uid) if not play[i].is_empty() else (hands[i] if hands[i] >= 0 else nearby_furniture(i))
+	if not play[i].is_empty() and not leave_play(i): return false
+	for active in play:
+		if not active.is_empty() and int(active.uid) == uid:
+			message = "伙伴正在这里玩，等下来再收纳吧。"
+			return true
 	if uid < 0: return false
 	var entry := item(uid)
 	if hands[i] == uid: entry.dir = directions[i]
@@ -426,6 +487,11 @@ func portal(i: int) -> bool:
 
 func use(i: int) -> void:
 	if h.paused: return
+	if not play[i].is_empty():
+		if float(play[i].jump) > 0: return
+		var bed: bool = item(int(play[i].uid)).kind == "bed"
+		play[i].pose = ("sleep" if bed else "sit") if play[i].pose == "stand" else "stand"
+		return
 	if portal(i): return
 	if room == "furniture":
 		var closest := -1
@@ -441,7 +507,9 @@ func use(i: int) -> void:
 		place(i, preview_cell(i))
 		return
 	var uid := nearby_furniture(i)
-	if uid >= 0 and pickup(i, uid): return
+	if uid >= 0:
+		if use_furniture(i, uid): return
+		if pickup(i, uid): return
 	bag_menu(i)
 
 func display_pos(index: int) -> Vector2:
@@ -462,13 +530,27 @@ func draw_art(entry: Dictionary, rect: Rect2, direction: int, tint: Color = Colo
 
 func paint_actor(i: int) -> void:
 	var pos := positions[i]
+	var pose: String = "" if play[i].is_empty() else str(play[i].pose)
+	var bounce := 0.0 if play[i].is_empty() else sin(float(play[i].jump) / 0.72 * PI) * 64.0
+	pos.y -= bounce
+	if pose == "sleep":
+		# Crop the existing face and tuck it behind a pixel blanket matching the bed.
+		var texture: Texture2D = h.players[i].sheets["Idle"]
+		var breath := roundf(sin(h.ticks * 2.0)) * 2
+		h.draw_texture_rect_region(texture, Rect2(pos.x - 30, pos.y - 105 + breath, 60, 48), Rect2(6, 5, 20, 16))
+		h.draw_rect(Rect2(pos.x - 39, pos.y - 51, 78, 48), Color("85aead"))
+		h.draw_rect(Rect2(pos.x - 39, pos.y - 51, 78, 8), Color("c4d8c2"))
+		for x in range(4): h.draw_rect(Rect2(pos.x - 32 + x * 18, pos.y - 34, 5, 24), Color("729797"))
+		h._center("z Z z", pos.y - 103 + sin(h.ticks * 2) * 3, 18, h.CREAM, false, pos.x + 20)
+		h._center(h.player_name(i), pos.y - 126, 14, h.CREAM, true, pos.x)
+		return
 	h.draw_set_transform(pos, 0, Vector2(1, 0.4))
 	h.draw_circle(Vector2.ZERO, 16, Color(0.15, 0.12, 0.1, 0.25))
 	h.draw_set_transform(Vector2.ZERO)
-	var texture: Texture2D = h.players[i].sheets["Run" if moving[i] else "Idle"]
+	var texture: Texture2D = h.players[i].sheets["Jump" if bounce > 0 else ("Run" if moving[i] else "Idle")]
 	var frames := maxi(1, texture.get_width() / 32)
 	var frame := int(h.ticks * (12 if moving[i] else 7)) % frames
-	h.draw_set_transform(pos, 0, Vector2(face_x[i], 1))
+	h.draw_set_transform(pos, 0, Vector2(face_x[i], 0.72 if pose == "sit" else 1.0))
 	h.draw_texture_rect_region(texture, Rect2(-32, -64, 64, 64), Rect2(frame * 32, 0, 32, 32))
 	h.draw_set_transform(Vector2.ZERO)
 	h._center(h.player_name(i), pos.y - 65, 14, Color("ffe4a1") if i == 0 else Color("baf0d1"), true, pos.x)
@@ -508,19 +590,23 @@ func paint() -> void:
 			draw_art({"kind": entry.id}, rect, 0, Color.WHITE, 2.0)
 			h.draw_rect(Rect2(pos + Vector2(-70, 8), Vector2(140, 25)), Color("76513c"))
 			h._center("%s  %d元" % [entry.name, entry.price], pos.y + 28, 17, h.CREAM, false, pos.x)
-	for i in range(2): sorted.append({"y": positions[i].y, "actor": i})
+	for i in range(2):
+		var depth := positions[i].y if play[i].is_empty() else item_rect(item(int(play[i].uid))).end.y + 1
+		sorted.append({"y": depth, "actor": i})
 	sorted.sort_custom(func(a, b): return a.y < b.y)
 	for entry in sorted:
 		if entry.has("actor"): paint_actor(entry.actor)
 		else: draw_art(entry.item, item_rect(entry.item), int(entry.item.dir))
 	for i in range(2):
 		if room != "home": continue
+		if not play[i].is_empty(): continue
 		if hands[i] < 0:
 			var uid := nearby_furniture(i)
 			if uid >= 0:
 				var selection := item_rect(item(uid))
 				h.draw_rect(selection.grow(2), Color("ffe3a0") if i == 0 else Color("baf0d1"), false, 2)
-				h._center("Q 收回库存" if i == 0 else "Backspace 收回库存", selection.position.y - 7, 15, h.CREAM, false, selection.get_center().x)
+				var caption := ("E 使用 · R 搬动 · Q 收纳" if i == 0 else "O 使用 · / 搬动 · Backspace 收纳") if playable(item(uid).kind) else ("Q 收回库存" if i == 0 else "Backspace 收回库存")
+				h._center(caption, selection.position.y - 7, 15, h.CREAM, false, selection.get_center().x)
 			continue
 		var cell := preview_cell(i)
 		var entry := item(hands[i])
@@ -538,7 +624,7 @@ func paint() -> void:
 	var size := 18 if h.font.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x < 1180 else 15
 	h._center(message, 134, size, h.CREAM)
 	h._panel(Rect2(25, 655, 1230, 48), Color("49382d"))
-	h._center("%s  WASD / E搬放 / R转向 / Q收纳或家具包     %s  方向键 / O搬放 / 斜杠转向 / Backspace收纳或家具包" % [h.player_name(0), h.player_name(1)], 685, 15, h.CREAM)
+	h._center("%s  WASD / E使用放下 / R搬动转向 / Q收纳     %s  方向键 / O使用放下 / 斜杠搬动转向 / Backspace收纳" % [h.player_name(0), h.player_name(1)], 685, 15, h.CREAM)
 	if h.paused:
 		h.draw_rect(Rect2(0, 0, 1280, 720), Color(0.1, 0.15, 0.13, 0.8))
 		h._panel(Rect2(310, 166, 660, 410))

@@ -1067,6 +1067,17 @@ func _capture_demo(path: String) -> void:
 			set_player_names("Jerry", "小伙伴")
 			if view == "names": show_names(false)
 			else: show_select()
+		"home-sleep", "home-jump":
+			home.state.items = []
+			for data in [["bed", 5, 2], ["dining_chair", 11, 4], ["rug", 10, 3]]:
+				home.state.items.append({"uid": home.state.items.size() + 1, "kind": data[0], "room": "home", "cell": [data[1], data[2]], "dir": 0})
+			home.enter()
+			home.use_furniture(0, 1)
+			home.use_furniture(1, 2)
+			if view == "home-sleep": home.use(0)
+			else:
+				home.jump_furniture(0)
+				home.jump_furniture(1)
 		"furniture-new":
 			home.enter("furniture")
 			home.display_page = 1

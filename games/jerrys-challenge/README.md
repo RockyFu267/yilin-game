@@ -2,6 +2,8 @@
 
 可爱像素风的双人合作横版解谜游戏。
 
+当前试玩版 **0.7.4**：小家的床、椅子和沙发支持睡觉、坐下、站立和跳跃。靠近按 E / O 使用，W / ↑ 在家具上跳，左右或向下离开；R / 斜杠搬动，Q / Backspace 收纳。详见 [家具互动说明](../../docs/games/jerrys-challenge/家具互动.md)。
+
 - 游戏工程标识：`jerrys-challenge`
 - 技术选型：Godot 4.x 稳定版、GDScript、Compatibility 渲染器。
 - [游戏设计文档](../../docs/games/jerrys-challenge/游戏概述.md)
